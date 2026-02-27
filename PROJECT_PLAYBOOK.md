@@ -129,7 +129,7 @@ When changing any Room entity field, always update all of:
 - Secret key is managed by Android Keystore.
 - Repository decrypts before returning to UI and encrypts before persistence.
 - Legacy plaintext rows are migrated on first read/write.
-- Account image is optional, persisted as URI/path string (`accounts.imageUri`), and displayed when present.
+- Account image is optional, persisted as URI/path string (`accounts.imageUri`), displayed below account info when present, and supports tap-to-preview with pinch zoom + drag.
 
 ### 5.3 Recycle bins
 
@@ -328,6 +328,27 @@ Rule:
   - `cd TPAPP && bash ./gradlew :app:assembleDebug --no-daemon` (attempted; failed in this environment: Gradle wrapper distribution download blocked by network sandbox).
 - Notes/Risks:
   - Persisted URI depends on provider availability; if source file is removed or permission revoked, image may fail to load.
+
+### 2026-02-27 (Account image moved below info + zoomable preview)
+
+- Request:
+  - Move account image in account card from top to below account info.
+  - Add image preview interaction with pinch zoom and drag.
+  - Keep no-image account UI and existing copy/show-hide password interactions unchanged.
+- Implementation:
+  - Updated `AccountItemCard` layout order so image section renders after username/password/note/tags/update time block.
+  - Added image tap preview dialog (`ImagePreviewDialog`) with gesture transforms:
+    - pinch zoom (`1x` to `5x`)
+    - drag/pan while viewing
+  - Added close button in preview overlay; did not alter account card copy username/password and show/hide password logic.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppDetailScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && bash ./gradlew :app:compileDebugKotlin --no-daemon` (attempted; failed in this environment: network sandbox blocks Gradle distribution download)
+  - `cd TPAPP && bash ./gradlew :app:assembleDebug --no-daemon` (attempted; failed in this environment: network sandbox blocks Gradle distribution download)
+- Notes/Risks:
+  - Preview currently supports gesture zoom/pan and close button; no additional rotation/double-tap behavior is implemented.
 
 ---
 
