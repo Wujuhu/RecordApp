@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.tp.tpapp.data.model.AccountEntity
 import com.tp.tpapp.ui.viewmodel.AppDetailViewModel
 import com.tp.tpapp.ui.viewmodel.SettingsViewModel
@@ -295,6 +296,17 @@ private fun AccountItemCard(account: AccountEntity, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            if (!account.imageUri.isNullOrBlank()) {
+                AsyncImage(
+                    model = account.imageUri,
+                    contentDescription = "账户图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

@@ -150,6 +150,7 @@ class TPRepository(
                         ExportAccount(
                             username = account.username,
                             password = decryptPasswordForRead(account.password),
+                            imageUri = account.imageUri,
                             note = account.note,
                             tags = account.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
                             updatedAt = dateFormat.format(Date(account.updatedAt))
@@ -211,6 +212,7 @@ class TPRepository(
                         appId = appId,
                         username = exportAccount.username,
                         password = exportAccount.password,
+                        imageUri = exportAccount.imageUri,
                         note = exportAccount.note,
                         tags = exportAccount.tags?.joinToString(","),
                         updatedAt = parseTimestamp(exportAccount.updatedAt, dateFormat)
@@ -252,6 +254,7 @@ class TPRepository(
                         appId = targetAppId,
                         username = exportAccount.username,
                         password = exportAccount.password,
+                        imageUri = exportAccount.imageUri,
                         note = exportAccount.note,
                         tags = exportAccount.tags?.joinToString(","),
                         updatedAt = parseTimestamp(exportAccount.updatedAt, dateFormat)
@@ -325,6 +328,7 @@ class TPRepository(
     data class ExportAccount(
         val username: String,
         val password: String,
+        val imageUri: String? = null,
         val note: String?,
         val tags: List<String>?,
         val updatedAt: String

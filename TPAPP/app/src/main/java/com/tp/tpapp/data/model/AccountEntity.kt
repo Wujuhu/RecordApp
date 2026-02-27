@@ -23,6 +23,7 @@ data class AccountEntity(
     val appId: Long,
     val username: String,
     val password: String,
+    val imageUri: String? = null,
     val note: String? = null,
     val tags: String? = null,
     val sortOrder: Int = 0,

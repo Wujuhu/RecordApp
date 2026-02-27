@@ -2,7 +2,7 @@
 
 > Purpose: let any new AI understand architecture, workflow, and critical rules in 5-10 minutes.
 > Scope: repository root `C:\Users\WJH\Downloads\tp` (main Android project is `TPAPP`).
-> Last updated: 2026-02-23
+> Last updated: 2026-02-27
 
 ---
 
@@ -68,7 +68,7 @@ Common commands (run in `C:\Users\WJH\Downloads\tp\TPAPP`):
 
 - `data/model`
   - `AppEntity` (`isPinned`, `sortOrder`, `isDeleted`)
-  - `AccountEntity` (FK to app, cascade delete)
+  - `AccountEntity` (FK to app, cascade delete, optional `imageUri`)
   - `RecordEntity` (`isDeleted`, `isCollapsed`)
 - `data/dao`
   - `AppDao`: active/deleted apps, soft delete, restore, ordering, import helpers
@@ -89,10 +89,11 @@ Common commands (run in `C:\Users\WJH\Downloads\tp\TPAPP`):
 ## 4. Database and Migration Rules
 
 - Database: `AppDatabase`
-- Current version: `4`
+- Current version: `5`
 - Existing migrations:
   - `2 -> 3`: add `apps.isPinned`
   - `3 -> 4`: add `apps.isDeleted`
+  - `4 -> 5`: add nullable `accounts.imageUri`
 
 When changing any Room entity field, always update all of:
 
@@ -128,6 +129,7 @@ When changing any Room entity field, always update all of:
 - Secret key is managed by Android Keystore.
 - Repository decrypts before returning to UI and encrypts before persistence.
 - Legacy plaintext rows are migrated on first read/write.
+- Account image is optional, persisted as URI/path string (`accounts.imageUri`), and displayed when present.
 
 ### 5.3 Recycle bins
 
@@ -255,6 +257,21 @@ Rule:
 - Notes/Risks:
   - Local branch contains committed project snapshot; remote sync still pending once network access to GitHub is available.
 
+### 2026-02-27 (Fix AccountEditScreen weight compile error)
+
+- Summary:
+  - Fixed Kotlin compile error in `AccountEditScreen.kt`:
+    - `Cannot access val RowColumnParentData?.weight: Float, it is internal in file`
+  - Applied minimal change by removing an unnecessary explicit import of `androidx.compose.foundation.layout.weight`.
+  - Kept account image upload/display behavior unchanged (`OpenDocument`, persisted URI permission, `AsyncImage` preview, replace/clear actions).
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AccountEditScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && bash ./gradlew :app:compileDebugKotlin --no-daemon` (blocked in sandbox: Gradle wrapper download requires network)
+  - `cd TPAPP && bash ./gradlew :app:assembleDebug --no-daemon` (not executed successfully for same reason)
+  - Note: initial run also hit `~/.gradle` permission; rerun with `GRADLE_USER_HOME=/tmp/gradle-home` bypassed that but remained blocked by network restriction.
+
 
 ### 2026-02-27 (A plan: password-at-rest encryption via Android Keystore)
 
@@ -277,6 +294,40 @@ Rule:
 - Notes/Risks:
   - If Keystore key is invalidated/removed, previously encrypted passwords may become undecryptable.
   - Current decrypt failure fallback returns original stored value to avoid crash.
+
+### 2026-02-27 (Password accounts: image upload + display)
+
+- Request:
+  - Add image upload for each account under password apps and display images in account UI.
+- Implementation:
+  - Data layer:
+    - Added nullable `imageUri` field to `AccountEntity`.
+    - Upgraded Room DB to version `5` and added migration `4 -> 5` (`ALTER TABLE accounts ADD COLUMN imageUri TEXT`).
+  - Add/Edit account page:
+    - Added image picker using `OpenDocument` with persisted read permission.
+    - Added image preview and clear-image actions.
+    - Save path now persists selected `imageUri`.
+  - Account display:
+    - Account card now renders image when `imageUri` exists; no-image cards keep original content flow.
+  - Import/Export JSON:
+    - Added optional `imageUri` in `ExportAccount`.
+    - Export writes this field; import reads it when present; old JSON without this field remains compatible.
+  - Dependency:
+    - Added `coil-compose` for Compose image loading.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/model/AccountEntity.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/AppDatabase.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/TPRepository.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/viewmodel/AccountEditViewModel.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AccountEditScreen.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppDetailScreen.kt`
+  - `TPAPP/gradle/libs.versions.toml`
+  - `TPAPP/app/build.gradle.kts`
+- Verification:
+  - `cd TPAPP && bash ./gradlew :app:compileDebugKotlin --no-daemon` (attempted; failed in this environment: Gradle wrapper distribution download blocked by network sandbox).
+  - `cd TPAPP && bash ./gradlew :app:assembleDebug --no-daemon` (attempted; failed in this environment: Gradle wrapper distribution download blocked by network sandbox).
+- Notes/Risks:
+  - Persisted URI depends on provider availability; if source file is removed or permission revoked, image may fail to load.
 
 ---
 

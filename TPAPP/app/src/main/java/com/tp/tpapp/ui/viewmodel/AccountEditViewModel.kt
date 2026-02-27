@@ -26,6 +26,9 @@ class AccountEditViewModel(application: Application) : AndroidViewModel(applicat
     private val _tags = MutableStateFlow("")
     val tags: StateFlow<String> = _tags.asStateFlow()
 
+    private val _imageUri = MutableStateFlow<String?>(null)
+    val imageUri: StateFlow<String?> = _imageUri.asStateFlow()
+
     private var editingAccountId: Long? = null
     private var appId: Long = 0
 
@@ -38,6 +41,7 @@ class AccountEditViewModel(application: Application) : AndroidViewModel(applicat
                     if (account != null) {
                         _username.value = account.username
                         _password.value = account.password
+                        _imageUri.value = account.imageUri
                         _note.value = account.note ?: ""
                         _tags.value = account.tags ?: ""
                     }
@@ -50,6 +54,7 @@ class AccountEditViewModel(application: Application) : AndroidViewModel(applicat
     fun onPasswordChange(value: String) { _password.value = value }
     fun onNoteChange(value: String) { _note.value = value }
     fun onTagsChange(value: String) { _tags.value = value }
+    fun onImageUriChange(value: String?) { _imageUri.value = value }
 
     fun saveAccount(onComplete: () -> Unit) {
         viewModelScope.launch {
@@ -58,6 +63,7 @@ class AccountEditViewModel(application: Application) : AndroidViewModel(applicat
                 appId = appId,
                 username = _username.value,
                 password = _password.value,
+                imageUri = _imageUri.value,
                 note = _note.value.ifBlank { null },
                 tags = _tags.value.ifBlank { null },
                 updatedAt = System.currentTimeMillis()

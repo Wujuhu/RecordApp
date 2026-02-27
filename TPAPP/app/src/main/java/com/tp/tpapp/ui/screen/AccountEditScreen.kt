@@ -1,5 +1,9 @@
 ﻿package com.tp.tpapp.ui.screen
 
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,8 +41,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.tp.tpapp.ui.component.GeneratorPreset
 import com.tp.tpapp.ui.component.PasswordGeneratorDialog
 import com.tp.tpapp.ui.viewmodel.AccountEditViewModel
@@ -57,13 +65,28 @@ fun AccountEditScreen(
 ) {
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
+    val imageUri by viewModel.imageUri.collectAsState()
     val note by viewModel.note.collectAsState()
     val tags by viewModel.tags.collectAsState()
+    val context = LocalContext.current
 
     var showPassword by remember { mutableStateOf(false) }
     var showGenerator by remember { mutableStateOf(false) }
     var generatorTarget by remember { mutableStateOf(GeneratorTarget.PASSWORD) }
     val focusRequester = remember { FocusRequester() }
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            viewModel.onImageUriChange(it.toString())
+        }
+    }
 
     val isEditing = accountId != null
 
@@ -152,6 +175,42 @@ fun AccountEditScreen(
                     }
                 }
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "账户图片（可选）",
+                style = MaterialTheme.typography.labelLarge
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (!imageUri.isNullOrBlank()) {
+                AsyncImage(
+                    model = imageUri,
+                    contentDescription = "账户图片",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { imagePicker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (imageUri.isNullOrBlank()) "选择图片" else "更换图片")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = { viewModel.onImageUriChange(null) },
+                    enabled = !imageUri.isNullOrBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("清除图片")
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
