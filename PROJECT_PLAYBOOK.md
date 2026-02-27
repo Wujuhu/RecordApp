@@ -77,6 +77,10 @@ Common commands (run in `C:\Users\WJH\Downloads\tp\TPAPP`):
 - `data/TPRepository.kt`
   - Central business logic
   - JSON import/export and import modes
+  - Encrypts/decrypts `AccountEntity.password` at repository boundary (UI keeps plaintext).
+  - Handles plaintext-to-ciphertext migration during first read/write of legacy account rows.
+- `data/security`
+  - Android Keystore backed AES-GCM password encryption component.
 - `ui/component/PasswordGeneratorDialog.kt`
   - Random generator for password and username/account
 
@@ -119,6 +123,11 @@ When changing any Room entity field, always update all of:
 - Account delete is hard delete (no account recycle bin currently).
 - App supports persistent pin and reorder operations:
   - move up, move down, move to top, move to bottom, pin to top
+- Account password is encrypted at rest (Room `accounts.password` is no longer stored as plaintext).
+- AES-GCM with random IV is used.
+- Secret key is managed by Android Keystore.
+- Repository decrypts before returning to UI and encrypts before persistence.
+- Legacy plaintext rows are migrated on first read/write.
 
 ### 5.3 Recycle bins
 
@@ -246,12 +255,35 @@ Rule:
 - Notes/Risks:
   - Local branch contains committed project snapshot; remote sync still pending once network access to GitHub is available.
 
+
+### 2026-02-27 (A plan: password-at-rest encryption via Android Keystore)
+
+- Request:
+  - Implement A plan: only encrypt persisted `AccountEntity.password`, keep UI plaintext contract, and support legacy plaintext migration.
+- Implementation:
+  - Added independent encryption module under `data/security` using Android Keystore AES key + AES-GCM (`random IV + Base64 payload`).
+  - Repository now enforces:
+    - encrypt on account insert/update/reorder persistence path;
+    - decrypt on account read path for UI (`getAccountsByAppId`, `getAccountById`, `getAppWithAccounts`);
+    - lazy legacy migration: when plaintext password is read, it is transparently re-saved as ciphertext.
+  - Export now always outputs plaintext password by decrypting DB values on export path, preserving import/export usability.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/security/PasswordCipher.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/security/KeystoreAesGcmPasswordCipher.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/TPRepository.kt`
+- Verification:
+  - `./gradlew :app:compileDebugKotlin` (blocked locally: Android SDK location not configured in this environment)
+  - `./gradlew :app:assembleDebug` (not run for same reason)
+- Notes/Risks:
+  - If Keystore key is invalidated/removed, previously encrypted passwords may become undecryptable.
+  - Current decrypt failure fallback returns original stored value to avoid crash.
+
 ---
 
 ## 9. Known Risks and Notes
 
 - Some older files contain mojibake in comments/UI text from historical encoding issues.
-- Passwords are currently stored in plain text (no encryption layer yet).
+- Passwords are encrypted at rest using Android Keystore AES-GCM; key invalidation can make old ciphertext undecryptable.
 - `fallbackToDestructiveMigration()` is deprecated and can be upgraded later.
 
 ---

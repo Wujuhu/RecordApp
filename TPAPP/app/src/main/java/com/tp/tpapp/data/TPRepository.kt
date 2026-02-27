@@ -10,8 +10,11 @@ import com.tp.tpapp.data.model.AccountEntity
 import com.tp.tpapp.data.model.AppEntity
 import com.tp.tpapp.data.model.AppWithAccounts
 import com.tp.tpapp.data.model.RecordEntity
+import com.tp.tpapp.data.security.KeystoreAesGcmPasswordCipher
+import com.tp.tpapp.data.security.PasswordCipher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.io.InputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -22,7 +25,8 @@ import java.util.TimeZone
 class TPRepository(
     private val appDao: AppDao,
     private val accountDao: AccountDao,
-    private val recordDao: RecordDao
+    private val recordDao: RecordDao,
+    private val passwordCipher: PasswordCipher
 ) {
     // ========== App 操作 ==========
 
@@ -30,7 +34,13 @@ class TPRepository(
 
     fun getAppById(id: Long): Flow<AppEntity?> = appDao.getAppById(id)
 
-    fun getAppWithAccounts(appId: Long): Flow<AppWithAccounts?> = appDao.getAppWithAccounts(appId)
+    fun getAppWithAccounts(appId: Long): Flow<AppWithAccounts?> =
+        appDao.getAppWithAccounts(appId).map { appWithAccounts ->
+            appWithAccounts?.let { item ->
+                val decryptedAccounts = item.accounts.map { decryptAccountForRead(it, migrateIfPlain = true) }
+                item.copy(accounts = decryptedAccounts)
+            }
+        }
 
     fun searchApps(query: String): Flow<List<AppEntity>> = appDao.searchApps(query)
 
@@ -61,21 +71,31 @@ class TPRepository(
     // ========== Account 操作 ==========
 
     fun getAccountsByAppId(appId: Long): Flow<List<AccountEntity>> =
-        accountDao.getAccountsByAppId(appId)
+        accountDao.getAccountsByAppId(appId).map { accounts ->
+            accounts.map { decryptAccountForRead(it, migrateIfPlain = true) }
+        }
 
-    fun getAccountById(id: Long): Flow<AccountEntity?> = accountDao.getAccountById(id)
+    fun getAccountById(id: Long): Flow<AccountEntity?> =
+        accountDao.getAccountById(id).map { account ->
+            account?.let { decryptAccountForRead(it, migrateIfPlain = true) }
+        }
 
     suspend fun insertAccount(account: AccountEntity): Long {
         val nextOrder = accountDao.getNextSortOrder(account.appId)
-        return accountDao.insertAccount(account.copy(sortOrder = nextOrder))
+        val accountForStorage = encryptAccountForStorage(account.copy(sortOrder = nextOrder))
+        return accountDao.insertAccount(accountForStorage)
     }
 
-    suspend fun updateAccount(account: AccountEntity) = accountDao.updateAccount(account)
+    suspend fun updateAccount(account: AccountEntity) {
+        accountDao.updateAccount(encryptAccountForStorage(account))
+    }
 
     suspend fun deleteAccount(account: AccountEntity) = accountDao.deleteAccount(account)
 
     suspend fun reorderAccounts(accounts: List<AccountEntity>) {
-        val updated = accounts.mapIndexed { index, account -> account.copy(sortOrder = index) }
+        val updated = accounts.mapIndexed { index, account ->
+            encryptAccountForStorage(account.copy(sortOrder = index))
+        }
         accountDao.updateAccounts(updated)
     }
 
@@ -129,7 +149,7 @@ class TPRepository(
                     accounts = appWithAccounts.accounts.map { account ->
                         ExportAccount(
                             username = account.username,
-                            password = account.password,
+                            password = decryptPasswordForRead(account.password),
                             note = account.note,
                             tags = account.tags?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() },
                             updatedAt = dateFormat.format(Date(account.updatedAt))
@@ -252,6 +272,41 @@ class TPRepository(
         }
     }
 
+    private suspend fun decryptAccountForRead(
+        account: AccountEntity,
+        migrateIfPlain: Boolean
+    ): AccountEntity {
+        val password = account.password
+        if (password.isEmpty()) return account
+
+        return if (passwordCipher.isEncrypted(password)) {
+            account.copy(password = decryptPasswordForRead(password))
+        } else {
+            if (migrateIfPlain) {
+                accountDao.updateAccount(
+                    account.copy(password = passwordCipher.encrypt(password))
+                )
+            }
+            account
+        }
+    }
+
+    private fun encryptAccountForStorage(account: AccountEntity): AccountEntity {
+        val password = account.password
+        if (password.isEmpty() || passwordCipher.isEncrypted(password)) {
+            return account
+        }
+        return account.copy(password = passwordCipher.encrypt(password))
+    }
+
+    private fun decryptPasswordForRead(value: String): String {
+        return if (!passwordCipher.isEncrypted(value)) {
+            value
+        } else {
+            runCatching { passwordCipher.decrypt(value) }.getOrElse { value }
+        }
+    }
+
     // ========== 导入/导出数据结构 ==========
 
     data class ExportData(
@@ -292,7 +347,12 @@ class TPRepository(
         fun getInstance(context: Context): TPRepository {
             return INSTANCE ?: synchronized(this) {
                 val db = AppDatabase.getDatabase(context)
-                val instance = TPRepository(db.appDao(), db.accountDao(), db.recordDao())
+                val instance = TPRepository(
+                    db.appDao(),
+                    db.accountDao(),
+                    db.recordDao(),
+                    KeystoreAesGcmPasswordCipher()
+                )
                 INSTANCE = instance
                 instance
             }
