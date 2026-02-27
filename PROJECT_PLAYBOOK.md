@@ -129,7 +129,7 @@ When changing any Room entity field, always update all of:
 - Secret key is managed by Android Keystore.
 - Repository decrypts before returning to UI and encrypts before persistence.
 - Legacy plaintext rows are migrated on first read/write.
-- Account image is optional, persisted as URI/path string (`accounts.imageUri`), displayed below account info when present, and supports tap-to-preview with pinch zoom + drag.
+- Account image is optional, persisted as URI/path string (`accounts.imageUri`), displayed below account info when present, and supports tap-to-preview with pinch zoom only (pan disabled).
 
 ### 5.3 Recycle bins
 
@@ -349,6 +349,22 @@ Rule:
   - `cd TPAPP && bash ./gradlew :app:assembleDebug --no-daemon` (attempted; failed in this environment: network sandbox blocks Gradle distribution download)
 - Notes/Risks:
   - Preview currently supports gesture zoom/pan and close button; no additional rotation/double-tap behavior is implemented.
+
+### 2026-02-27 (Password account image preview: disable pan, keep pinch zoom)
+
+- Request:
+  - In password module account image preview dialog, remove drag/pan gesture and keep pinch zoom only.
+- Implementation:
+  - Updated `ImagePreviewDialog` transform state to consume only `zoomChange`.
+  - Removed preview translation state (`offsetX`, `offsetY`) and corresponding `graphicsLayer` translation assignments.
+  - Kept existing preview open/close interactions and image display behavior unchanged.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppDetailScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && GRADLE_USER_HOME=/tmp/gradle-home bash ./gradlew :app:compileDebugKotlin --no-daemon` (failed in this environment: sandbox blocks network; Gradle wrapper cannot download `gradle-9.2.1-bin.zip`)
+- Notes/Risks:
+  - Build was not fully verifiable in this sandbox due outbound network restriction; runtime gesture logic change is localized to preview transform handling only.
 
 ---
 

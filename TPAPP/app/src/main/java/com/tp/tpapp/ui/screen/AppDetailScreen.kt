@@ -433,12 +433,8 @@ private fun ImagePreviewDialog(
     onDismiss: () -> Unit
 ) {
     var scale by remember { mutableStateOf(1f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+    val transformableState = rememberTransformableState { zoomChange, _, _ ->
         scale = (scale * zoomChange).coerceIn(1f, 5f)
-        offsetX += panChange.x
-        offsetY += panChange.y
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -457,8 +453,6 @@ private fun ImagePreviewDialog(
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
-                        translationX = offsetX
-                        translationY = offsetY
                     }
             )
             IconButton(
