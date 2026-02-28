@@ -85,6 +85,7 @@ fun AppDetailScreen(
     val appWithAccounts by viewModel.appWithAccounts.collectAsState()
     val showEditDialog by viewModel.showEditAppDialog.collectAsState()
     val needDeleteConfirm by settingsViewModel.passwordDeleteConfirm.collectAsState()
+    val passwordDefaultVisible by settingsViewModel.passwordDefaultVisible.collectAsState()
 
     LaunchedEffect(appId) {
         viewModel.loadApp(appId)
@@ -184,6 +185,7 @@ fun AppDetailScreen(
                         SwipeToDismissAccountItem(
                             account = account,
                             requireDeleteConfirm = needDeleteConfirm,
+                            defaultShowPassword = passwordDefaultVisible,
                             onClick = { onEditAccount(account.id) },
                             onDelete = { viewModel.deleteAccount(account) }
                         )
@@ -209,6 +211,7 @@ fun AppDetailScreen(
 private fun SwipeToDismissAccountItem(
     account: AccountEntity,
     requireDeleteConfirm: Boolean,
+    defaultShowPassword: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -256,7 +259,11 @@ private fun SwipeToDismissAccountItem(
         },
         enableDismissFromStartToEnd = false
     ) {
-        AccountItemCard(account = account, onClick = onClick)
+        AccountItemCard(
+            account = account,
+            defaultShowPassword = defaultShowPassword,
+            onClick = onClick
+        )
     }
 
     if (showDeleteConfirm) {
@@ -284,8 +291,12 @@ private fun SwipeToDismissAccountItem(
 }
 
 @Composable
-private fun AccountItemCard(account: AccountEntity, onClick: () -> Unit) {
-    var showPassword by remember { mutableStateOf(false) }
+private fun AccountItemCard(
+    account: AccountEntity,
+    defaultShowPassword: Boolean,
+    onClick: () -> Unit
+) {
+    var showPassword by remember(defaultShowPassword) { mutableStateOf(defaultShowPassword) }
     var showImagePreview by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current

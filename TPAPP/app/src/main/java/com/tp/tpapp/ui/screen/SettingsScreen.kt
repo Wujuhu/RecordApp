@@ -51,6 +51,7 @@ fun SettingsScreen(
     val recordDeleteConfirm by viewModel.recordDeleteConfirm.collectAsState()
     val passwordDeleteConfirm by viewModel.passwordDeleteConfirm.collectAsState()
     val startupTab by viewModel.startupTab.collectAsState()
+    val passwordDefaultVisible by viewModel.passwordDefaultVisible.collectAsState()
 
     Scaffold(
         topBar = {
@@ -102,6 +103,12 @@ fun SettingsScreen(
                 description = "关闭后，密码相关删除将直接执行",
                 checked = passwordDeleteConfirm,
                 onCheckedChange = viewModel::setPasswordDeleteConfirm
+            )
+            SettingSwitchRow(
+                title = "密码默认展示",
+                description = "开启后，密码页默认直接显示密码",
+                checked = passwordDefaultVisible,
+                onCheckedChange = viewModel::setPasswordDefaultVisible
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

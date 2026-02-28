@@ -34,6 +34,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val startupTab: StateFlow<Int> = repository.startupTabFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsRepository.STARTUP_TAB_RECORD)
 
+    val passwordDefaultVisible: StateFlow<Boolean> = repository.passwordDefaultVisibleFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun setThemeMode(mode: Int) {
         viewModelScope.launch {
             repository.setThemeMode(mode)
@@ -73,6 +76,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setStartupTab(tab: Int) {
         viewModelScope.launch {
             repository.setStartupTab(tab)
+        }
+    }
+
+    fun setPasswordDefaultVisible(visible: Boolean) {
+        viewModelScope.launch {
+            repository.setPasswordDefaultVisible(visible)
         }
     }
 }

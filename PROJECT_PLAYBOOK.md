@@ -145,6 +145,7 @@ Defaults:
 
 - `record_delete_confirm = true`
 - `password_delete_confirm = true`
+- `password_default_visible = false`
 - `startup_tab = 0` (`0=Record`, `1=Password`)
 - `theme_mode = -1`
 - `font_size = 1`
@@ -365,6 +366,28 @@ Rule:
   - `cd TPAPP && GRADLE_USER_HOME=/tmp/gradle-home bash ./gradlew :app:compileDebugKotlin --no-daemon` (failed in this environment: sandbox blocks network; Gradle wrapper cannot download `gradle-9.2.1-bin.zip`)
 - Notes/Risks:
   - Build was not fully verifiable in this sandbox due outbound network restriction; runtime gesture logic change is localized to preview transform handling only.
+
+### 2026-02-28 (Password page: default password visibility setting)
+
+- Request:
+  - Add a settings option to control whether account passwords are shown by default on the password app detail page.
+- Implementation:
+  - Added DataStore setting key `password_default_visible` with default `false`.
+  - Added corresponding flow/state and setter in settings repository/view model.
+  - Added settings switch item: `密码默认展示` in settings screen.
+  - Connected password app detail account cards to this setting so initial password visibility follows the switch:
+    - ON: passwords are visible by default; tap eye icon to hide.
+    - OFF: passwords are hidden by default; tap eye icon to show.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/SettingsRepository.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/viewmodel/SettingsViewModel.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/SettingsScreen.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppDetailScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin`
+- Notes/Risks:
+  - The default visibility setting affects account cards on app detail page; account edit page input behavior remains unchanged.
 
 ---
 

@@ -42,6 +42,10 @@ class SettingsRepository(private val context: Context) {
         preferences[STARTUP_TAB] ?: STARTUP_TAB_RECORD
     }
 
+    val passwordDefaultVisibleFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[PASSWORD_DEFAULT_VISIBLE] ?: false
+    }
+
     suspend fun setThemeMode(mode: Int) {
         context.dataStore.edit { preferences ->
             preferences[THEME_MODE] = mode
@@ -84,6 +88,12 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    suspend fun setPasswordDefaultVisible(visible: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PASSWORD_DEFAULT_VISIBLE] = visible
+        }
+    }
+
     // Singleton logic similar to TPRepository
     companion object {
         val THEME_MODE = intPreferencesKey("theme_mode") // -1: System, 0: Light, 1: Dark
@@ -93,6 +103,7 @@ class SettingsRepository(private val context: Context) {
         val RECORD_DELETE_CONFIRM = booleanPreferencesKey("record_delete_confirm")
         val PASSWORD_DELETE_CONFIRM = booleanPreferencesKey("password_delete_confirm")
         val STARTUP_TAB = intPreferencesKey("startup_tab")
+        val PASSWORD_DEFAULT_VISIBLE = booleanPreferencesKey("password_default_visible")
 
         const val STARTUP_TAB_RECORD = 0
         const val STARTUP_TAB_PASSWORD = 1
