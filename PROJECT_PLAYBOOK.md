@@ -2,7 +2,7 @@
 
 > Purpose: let any new AI understand architecture, workflow, and critical rules in 5-10 minutes.
 > Scope: repository root `C:\Users\WJH\Downloads\tp` (main Android project is `TPAPP`).
-> Last updated: 2026-02-27
+> Last updated: 2026-03-02
 
 ---
 
@@ -76,7 +76,7 @@ Common commands (run in `C:\Users\WJH\Downloads\tp\TPAPP`):
   - `RecordDao`: active/deleted records, soft delete, restore, collapse state
 - `data/TPRepository.kt`
   - Central business logic
-  - JSON import/export and import modes
+  - JSON import/export and import modes (single file contains records + password apps/accounts)
   - Encrypts/decrypts `AccountEntity.password` at repository boundary (UI keeps plaintext).
   - Handles plaintext-to-ciphertext migration during first read/write of legacy account rows.
 - `data/security`
@@ -129,7 +129,7 @@ When changing any Room entity field, always update all of:
 - Secret key is managed by Android Keystore.
 - Repository decrypts before returning to UI and encrypts before persistence.
 - Legacy plaintext rows are migrated on first read/write.
-- Account image is optional, persisted as URI/path string (`accounts.imageUri`), displayed below account info when present, and supports tap-to-preview with pinch zoom only (pan disabled).
+- Account image is optional, persisted as URI/path string (`accounts.imageUri`), displayed below account info when present, and supports full-screen preview with pinch zoom, drag/pan, and double-tap zoom toggle.
 
 ### 5.3 Recycle bins
 
@@ -145,24 +145,31 @@ Defaults:
 
 - `record_delete_confirm = true`
 - `password_delete_confirm = true`
-- `password_default_visible = false`
+- `password_default_visible = true`
 - `startup_tab = 0` (`0=Record`, `1=Password`)
 - `theme_mode = -1`
 - `font_size = 1`
 - `max_lines = 5`
 - `show_index = true`
 
-### 5.5 Password import/export
+### 5.5 Unified import/export (records + password)
 
-- Export: active apps + accounts to JSON.
-- Import requires mode selection:
+- Export: active records + active password apps/accounts are exported to one JSON file.
+- Import requires mode selection and applies to both modules:
   - `OVERWRITE`:
-    - soft-delete all current active apps to recycle bin
+    - soft-delete all current active apps to password recycle bin
+    - if import file contains `records` field: soft-delete all current active records to record recycle bin
+    - if import file has no `records` field (legacy password-only JSON): keep existing records unchanged
     - then import file content
   - `MERGE`:
-    - exact app name match on active apps
-    - if exists: add accounts under that app
-    - else: create app then add accounts
+    - if import file contains `records` field: records are appended as new records
+    - if import file has no `records` field: records are not changed
+    - password apps use exact app-name match:
+      - if exists: add accounts under that app
+      - else: create app then add accounts
+- Entry points:
+  - Password page can import/export unified file.
+  - Record page can import/export unified file.
 
 ---
 
@@ -388,6 +395,98 @@ Rule:
   - `cd TPAPP && ./gradlew :app:compileDebugKotlin`
 - Notes/Risks:
   - The default visibility setting affects account cards on app detail page; account edit page input behavior remains unchanged.
+
+### 2026-03-02 (Password input always visible + full-screen image preview UX)
+
+- Request:
+  - Remove show/hide toggle from account password input so password is always visible while editing/creating an account.
+  - Fix account image preview to use full-screen behavior with normal zoom interaction.
+- Implementation:
+  - `AccountEditScreen`:
+    - Removed password visibility toggle state and eye icon.
+    - Password field now always shows plain text input; random-password generator action is kept.
+  - `AppDetailScreen` image preview dialog:
+    - Switched to full-screen dialog (`DialogProperties(usePlatformDefaultWidth = false)`).
+    - Preview image now fills viewport (`ContentScale.Fit`) and supports:
+      - pinch zoom (`1x..5x`)
+      - drag/pan while zoomed (with boundary clamp)
+      - double-tap toggle (`1x <-> 2x`)
+    - Kept top-right close action.
+  - Also fixed several malformed legacy display strings in `AppDetailScreen` that caused Kotlin parse errors, to keep compile status green.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AccountEditScreen.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppDetailScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin` passed
+- Notes/Risks:
+  - Password default visibility setting in Settings still applies to account cards on app detail page; this change only forces plain-text behavior in account edit/add input.
+
+### 2026-03-02 (Unified import/export file for records + passwords)
+
+- Request:
+  - Adapt import/export for the Record page and make backup/restore include both records and password data in one file.
+- Implementation:
+  - Data layer:
+    - `TPRepository.exportToJson` now exports:
+      - active apps + accounts
+      - active records
+    - Export schema upgraded to `version = 2` and adds `records` collection.
+    - `TPRepository.importFromJson` now imports records and password data together.
+    - `OVERWRITE` mode soft-deletes active apps before import; for records it applies overwrite only when file includes `records` field.
+    - `MERGE` mode keeps previous app/account merge logic and appends imported records when file includes `records` field.
+  - DAO:
+    - Added `RecordDao.softDeleteAllActive()` for overwrite import flow.
+  - UI:
+    - Added import/export entry to Record page top bar (with mode selection dialog and snackbar feedback).
+    - Password page import/export messages and wording updated to reflect unified file behavior.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/TPRepository.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/dao/RecordDao.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/viewmodel/RecordListViewModel.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/RecordListScreen.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/viewmodel/AppListViewModel.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AppListScreen.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin` passed
+- Notes/Risks:
+  - Import mode remains global per file; there is no per-module selective import toggle.
+
+### 2026-03-02 (Legacy password-only JSON compatibility for unified import)
+
+- Request:
+  - Ensure old-version JSON files (password-only export without `records` field) remain importable after unified import/export update.
+- Implementation:
+  - In `TPRepository.importFromJson`, parse JSON root and detect whether `records` field exists.
+  - Legacy file behavior (`records` absent):
+    - import passwords/apps as before
+    - do not overwrite or append records
+  - Unified file behavior (`records` present):
+    - keep current unified logic for records + passwords
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/TPRepository.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin` passed
+- Notes/Risks:
+  - Legacy compatibility detection is field-based (`records` exists or not), independent of `version` number.
+
+### 2026-03-02 (Default password visibility switched to ON)
+
+- Request:
+  - Make `密码默认展示` enabled by default.
+- Implementation:
+  - Updated DataStore fallback default for `password_default_visible` to `true`.
+  - Updated `SettingsViewModel` initial state for `passwordDefaultVisible` to `true` to avoid first-frame mismatch.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/data/SettingsRepository.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/viewmodel/SettingsViewModel.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin` passed
+- Notes/Risks:
+  - Existing users who previously saved `password_default_visible=false` will keep that explicit setting; this change affects default/fallback behavior.
 
 ---
 

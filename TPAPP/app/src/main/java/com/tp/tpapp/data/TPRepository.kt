@@ -3,6 +3,7 @@
 import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
 import com.tp.tpapp.data.dao.AccountDao
 import com.tp.tpapp.data.dao.AppDao
 import com.tp.tpapp.data.dao.RecordDao
@@ -134,12 +135,13 @@ class TPRepository(
 
     suspend fun exportToJson(outputStream: OutputStream) {
         val allAppsWithAccounts = appDao.getAllAppsWithAccounts().first()
+        val allRecords = recordDao.getActiveRecords().first()
 
         val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         dateFormat.timeZone = TimeZone.getTimeZone("UTC")
 
         val exportData = ExportData(
-            version = 1,
+            version = 2,
             exportedAt = dateFormat.format(Date()),
             apps = allAppsWithAccounts.map { appWithAccounts ->
                 ExportApp(
@@ -157,6 +159,15 @@ class TPRepository(
                         )
                     }
                 )
+            },
+            records = allRecords.map { record ->
+                ExportRecord(
+                    title = record.title,
+                    content = record.content,
+                    isCollapsed = record.isCollapsed,
+                    createdAt = dateFormat.format(Date(record.createdAt)),
+                    updatedAt = dateFormat.format(Date(record.updatedAt))
+                )
             }
         )
 
@@ -172,14 +183,21 @@ class TPRepository(
         return try {
             val json = inputStream.bufferedReader(Charsets.UTF_8).readText()
             val gson = Gson()
-            val exportData = gson.fromJson(json, ExportData::class.java)
+            val rootElement = JsonParser.parseString(json)
+            if (!rootElement.isJsonObject) {
+                return ImportResult.Error("导入文件格式无效")
+            }
+            val rootObject = rootElement.asJsonObject
+            val includeRecords = rootObject.has("records")
+            val exportData = gson.fromJson(rootObject, ExportData::class.java)
+                ?: return ImportResult.Error("导入文件格式无效")
 
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
             dateFormat.timeZone = TimeZone.getTimeZone("UTC")
 
             when (mode) {
-                ImportMode.OVERWRITE -> importOverwrite(exportData, dateFormat)
-                ImportMode.MERGE -> importMerge(exportData, dateFormat)
+                ImportMode.OVERWRITE -> importOverwrite(exportData, dateFormat, includeRecords)
+                ImportMode.MERGE -> importMerge(exportData, dateFormat, includeRecords)
             }
         } catch (e: Exception) {
             ImportResult.Error(e.message ?: "未知错误")
@@ -188,15 +206,20 @@ class TPRepository(
 
     private suspend fun importOverwrite(
         exportData: ExportData,
-        dateFormat: SimpleDateFormat
+        dateFormat: SimpleDateFormat,
+        includeRecords: Boolean
     ): ImportResult.Success {
-        // 覆盖导入：本地现有内容全部移入回收站，再导入文件内容
+        // 覆盖导入：密码内容始终覆盖；仅当文件包含 records 字段时覆盖记录内容
         appDao.softDeleteAllActive()
+        if (includeRecords) {
+            recordDao.softDeleteAllActive()
+        }
 
         var importedAppCount = 0
         var importedAccountCount = 0
+        var importedRecordCount = 0
 
-        for (exportApp in exportData.apps) {
+        for (exportApp in exportData.apps.orEmpty()) {
             val appId = insertApp(
                 AppEntity(
                     appName = exportApp.appName,
@@ -206,7 +229,7 @@ class TPRepository(
             )
             importedAppCount++
 
-            for (exportAccount in exportApp.accounts) {
+            for (exportAccount in exportApp.accounts.orEmpty()) {
                 insertAccount(
                     AccountEntity(
                         appId = appId,
@@ -222,18 +245,37 @@ class TPRepository(
             }
         }
 
-        return ImportResult.Success(importedAppCount, importedAccountCount)
+        if (includeRecords) {
+            for (exportRecord in exportData.records.orEmpty()) {
+                val recordContent = exportRecord.content ?: continue
+                if (exportRecord.title.isNullOrBlank() && recordContent.isBlank()) continue
+                insertRecord(
+                    RecordEntity(
+                        title = exportRecord.title,
+                        content = recordContent,
+                        isCollapsed = exportRecord.isCollapsed,
+                        createdAt = parseTimestamp(exportRecord.createdAt, dateFormat),
+                        updatedAt = parseTimestamp(exportRecord.updatedAt, dateFormat)
+                    )
+                )
+                importedRecordCount++
+            }
+        }
+
+        return ImportResult.Success(importedAppCount, importedAccountCount, importedRecordCount)
     }
 
     private suspend fun importMerge(
         exportData: ExportData,
-        dateFormat: SimpleDateFormat
+        dateFormat: SimpleDateFormat,
+        includeRecords: Boolean
     ): ImportResult.Success {
-        // 合并导入：同名应用下追加账号；没有应用则新建应用
+        // 合并导入：同名应用下追加账号；没有应用则新建应用；记录在文件包含 records 字段时追加
         var createdAppCount = 0
         var addedAccountCount = 0
+        var addedRecordCount = 0
 
-        for (exportApp in exportData.apps) {
+        for (exportApp in exportData.apps.orEmpty()) {
             val existingApp = appDao.getActiveAppByName(exportApp.appName)
             val targetAppId = if (existingApp != null) {
                 existingApp.id
@@ -248,7 +290,7 @@ class TPRepository(
                 )
             }
 
-            for (exportAccount in exportApp.accounts) {
+            for (exportAccount in exportApp.accounts.orEmpty()) {
                 insertAccount(
                     AccountEntity(
                         appId = targetAppId,
@@ -264,10 +306,28 @@ class TPRepository(
             }
         }
 
-        return ImportResult.Success(createdAppCount, addedAccountCount)
+        if (includeRecords) {
+            for (exportRecord in exportData.records.orEmpty()) {
+                val recordContent = exportRecord.content ?: continue
+                if (exportRecord.title.isNullOrBlank() && recordContent.isBlank()) continue
+                insertRecord(
+                    RecordEntity(
+                        title = exportRecord.title,
+                        content = recordContent,
+                        isCollapsed = exportRecord.isCollapsed,
+                        createdAt = parseTimestamp(exportRecord.createdAt, dateFormat),
+                        updatedAt = parseTimestamp(exportRecord.updatedAt, dateFormat)
+                    )
+                )
+                addedRecordCount++
+            }
+        }
+
+        return ImportResult.Success(createdAppCount, addedAccountCount, addedRecordCount)
     }
 
-    private fun parseTimestamp(raw: String, dateFormat: SimpleDateFormat): Long {
+    private fun parseTimestamp(raw: String?, dateFormat: SimpleDateFormat): Long {
+        if (raw.isNullOrBlank()) return System.currentTimeMillis()
         return try {
             dateFormat.parse(raw)?.time ?: System.currentTimeMillis()
         } catch (e: Exception) {
@@ -315,14 +375,15 @@ class TPRepository(
     data class ExportData(
         val version: Int,
         val exportedAt: String,
-        val apps: List<ExportApp>
+        val apps: List<ExportApp>? = emptyList(),
+        val records: List<ExportRecord>? = emptyList()
     )
 
     data class ExportApp(
         val appName: String,
         val note: String?,
         val isPinned: Boolean = false,
-        val accounts: List<ExportAccount>
+        val accounts: List<ExportAccount>? = emptyList()
     )
 
     data class ExportAccount(
@@ -334,13 +395,25 @@ class TPRepository(
         val updatedAt: String
     )
 
+    data class ExportRecord(
+        val title: String?,
+        val content: String?,
+        val isCollapsed: Boolean = false,
+        val createdAt: String?,
+        val updatedAt: String?
+    )
+
     enum class ImportMode {
         OVERWRITE,
         MERGE
     }
 
     sealed class ImportResult {
-        data class Success(val appCount: Int, val accountCount: Int) : ImportResult()
+        data class Success(
+            val appCount: Int,
+            val accountCount: Int,
+            val recordCount: Int
+        ) : ImportResult()
         data class Error(val message: String) : ImportResult()
     }
 

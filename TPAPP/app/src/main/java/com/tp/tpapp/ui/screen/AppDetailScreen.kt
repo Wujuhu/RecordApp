@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -53,16 +55,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.tp.tpapp.data.model.AccountEntity
@@ -444,32 +453,74 @@ private fun ImagePreviewDialog(
     onDismiss: () -> Unit
 ) {
     var scale by remember { mutableStateOf(1f) }
-    val transformableState = rememberTransformableState { zoomChange, _, _ ->
-        scale = (scale * zoomChange).coerceIn(1f, 5f)
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var viewportSize by remember { mutableStateOf(IntSize.Zero) }
+
+    fun clampOffset(rawOffset: Offset, currentScale: Float, size: IntSize): Offset {
+        if (size.width == 0 || size.height == 0) return Offset.Zero
+        val maxX = ((size.width * (currentScale - 1f)) / 2f).coerceAtLeast(0f)
+        val maxY = ((size.height * (currentScale - 1f)) / 2f).coerceAtLeast(0f)
+        return Offset(
+            x = rawOffset.x.coerceIn(-maxX, maxX),
+            y = rawOffset.y.coerceIn(-maxY, maxY)
+        )
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    val transformableState = rememberTransformableState { zoomChange, panChange, _ ->
+        val newScale = (scale * zoomChange).coerceIn(1f, 5f)
+        val nextOffset = if (newScale <= 1f) {
+            Offset.Zero
+        } else {
+            clampOffset(offset + panChange, newScale, viewportSize)
+        }
+        scale = newScale
+        offset = nextOffset
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.9f)),
+                .background(Color.Black)
+                .clipToBounds()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = {
+                            if (scale > 1f) {
+                                scale = 1f
+                                offset = Offset.Zero
+                            } else {
+                                scale = 2f
+                                offset = Offset.Zero
+                            }
+                        }
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
                 model = imageUri,
                 contentDescription = "账户图片预览",
+                contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .onSizeChanged { viewportSize = it }
                     .transformable(state = transformableState)
                     .graphicsLayer {
                         scaleX = scale
                         scaleY = scale
+                        translationX = offset.x
+                        translationY = offset.y
                     }
             )
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .systemBarsPadding()
                     .padding(16.dp)
             ) {
                 Icon(

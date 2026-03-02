@@ -43,7 +43,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     val passwordDefaultVisibleFlow: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[PASSWORD_DEFAULT_VISIBLE] ?: false
+        preferences[PASSWORD_DEFAULT_VISIBLE] ?: true
     }
 
     suspend fun setThemeMode(mode: Int) {

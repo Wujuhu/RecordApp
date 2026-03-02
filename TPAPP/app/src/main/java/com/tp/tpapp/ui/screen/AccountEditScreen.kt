@@ -18,8 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -70,7 +68,6 @@ fun AccountEditScreen(
     val tags by viewModel.tags.collectAsState()
     val context = LocalContext.current
 
-    var showPassword by remember { mutableStateOf(false) }
     var showGenerator by remember { mutableStateOf(false) }
     var generatorTarget by remember { mutableStateOf(GeneratorTarget.PASSWORD) }
     val focusRequester = remember { FocusRequester() }
@@ -150,28 +147,15 @@ fun AccountEditScreen(
                 label = { Text("密码") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                visualTransformation = if (showPassword) {
-                    androidx.compose.ui.text.input.VisualTransformation.None
-                } else {
-                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                },
                 trailingIcon = {
-                    Row {
-                        IconButton(onClick = { showPassword = !showPassword }) {
-                            Icon(
-                                if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (showPassword) "隐藏密码" else "显示密码"
-                            )
-                        }
-                        IconButton(onClick = {
-                            generatorTarget = GeneratorTarget.PASSWORD
-                            showGenerator = true
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Casino,
-                                contentDescription = "生成随机密码"
-                            )
-                        }
+                    IconButton(onClick = {
+                        generatorTarget = GeneratorTarget.PASSWORD
+                        showGenerator = true
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Casino,
+                            contentDescription = "生成随机密码"
+                        )
                     }
                 }
             )

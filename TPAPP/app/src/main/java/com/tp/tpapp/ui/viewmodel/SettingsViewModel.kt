@@ -35,7 +35,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsRepository.STARTUP_TAB_RECORD)
 
     val passwordDefaultVisible: StateFlow<Boolean> = repository.passwordDefaultVisibleFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     fun setThemeMode(mode: Int) {
         viewModelScope.launch {

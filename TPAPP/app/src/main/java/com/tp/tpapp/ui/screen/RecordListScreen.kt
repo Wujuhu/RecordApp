@@ -1,5 +1,7 @@
 ﻿package com.tp.tpapp.ui.screen
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.UnfoldLess
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -30,7 +34,10 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -45,8 +52,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
@@ -69,6 +79,11 @@ fun RecordListScreen(
 ) {
     val records by viewModel.records.collectAsState()
     val navigateToNewRecord by viewModel.navigateToNewRecord.collectAsState()
+    val importExportMessage by viewModel.importExportMessage.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var showImportModeDialog by remember { mutableStateOf(false) }
+    var selectedImportMode by remember { mutableStateOf(RecordListViewModel.ImportMode.OVERWRITE) }
 
     val fontSizeSetting by settingsViewModel.fontSize.collectAsState()
     val maxLines by settingsViewModel.maxLines.collectAsState()
@@ -88,8 +103,36 @@ fun RecordListScreen(
         }
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            context.contentResolver.openOutputStream(it)?.let { stream ->
+                viewModel.exportData(stream)
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            context.contentResolver.openInputStream(it)?.let { stream ->
+                viewModel.importData(stream, selectedImportMode)
+            }
+        }
+    }
+
+    LaunchedEffect(importExportMessage) {
+        importExportMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearImportExportMessage()
+        }
+    }
+
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("记录") },
@@ -98,6 +141,12 @@ fun RecordListScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
+                    IconButton(onClick = { exportLauncher.launch("tp_records_passwords.json") }) {
+                        Icon(Icons.Default.FileUpload, contentDescription = "导出")
+                    }
+                    IconButton(onClick = { showImportModeDialog = true }) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "导入")
+                    }
                     IconButton(onClick = onOpenRecycleBin) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = "回收站")
                     }
@@ -161,6 +210,76 @@ fun RecordListScreen(
                     )
                 }
             }
+        }
+    }
+
+    if (showImportModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportModeDialog = false },
+            title = { Text("选择导入模式") },
+            text = {
+                Column {
+                    RecordImportModeItem(
+                        title = "覆盖",
+                        description = "用文件覆盖本地记录和密码，本地内容移入回收站",
+                        selected = selectedImportMode == RecordListViewModel.ImportMode.OVERWRITE,
+                        onClick = { selectedImportMode = RecordListViewModel.ImportMode.OVERWRITE }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    RecordImportModeItem(
+                        title = "合并",
+                        description = "在本地追加导入的记录和密码数据",
+                        selected = selectedImportMode == RecordListViewModel.ImportMode.MERGE,
+                        onClick = { selectedImportMode = RecordListViewModel.ImportMode.MERGE }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showImportModeDialog = false
+                        importLauncher.launch(arrayOf("application/json"))
+                    }
+                ) {
+                    Text("选择文件")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportModeDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun RecordImportModeItem(
+    title: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick, role = Role.RadioButton)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(modifier = Modifier.width(8.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

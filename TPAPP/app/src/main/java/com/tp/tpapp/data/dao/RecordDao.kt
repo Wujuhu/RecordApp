@@ -30,23 +30,27 @@ interface RecordDao {
     @Update
     suspend fun updateRecords(records: List<RecordEntity>)
 
-    // 软删除
+    // Soft delete one record
     @Query("UPDATE records SET isDeleted = 1, updatedAt = :timestamp WHERE id = :id")
     suspend fun softDelete(id: Long, timestamp: Long = System.currentTimeMillis())
 
-    // 恢复
+    // Soft delete all active records
+    @Query("UPDATE records SET isDeleted = 1, updatedAt = :timestamp WHERE isDeleted = 0")
+    suspend fun softDeleteAllActive(timestamp: Long = System.currentTimeMillis())
+
+    // Restore one record
     @Query("UPDATE records SET isDeleted = 0, updatedAt = :timestamp WHERE id = :id")
     suspend fun restore(id: Long, timestamp: Long = System.currentTimeMillis())
 
-    // 彻底删除
+    // Hard delete one record
     @Query("DELETE FROM records WHERE id = :id")
     suspend fun hardDelete(id: Long)
 
-    // 清空回收站
+    // Empty recycle bin
     @Query("DELETE FROM records WHERE isDeleted = 1")
     suspend fun emptyTrash()
 
-    // 更新折叠状态
+    // Update collapse state
     @Query("UPDATE records SET isCollapsed = :isCollapsed WHERE id = :id")
     suspend fun updateCollapsed(id: Long, isCollapsed: Boolean)
 

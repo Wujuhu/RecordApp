@@ -141,7 +141,7 @@ fun AppListScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
-                    IconButton(onClick = { exportLauncher.launch("tp_passwords.json") }) {
+                    IconButton(onClick = { exportLauncher.launch("tp_records_passwords.json") }) {
                         Icon(Icons.Default.FileUpload, contentDescription = "导出")
                     }
                     IconButton(onClick = { showImportModeDialog = true }) {
@@ -243,14 +243,14 @@ fun AppListScreen(
                 Column {
                     ImportModeItem(
                         title = "覆盖",
-                        description = "只保留导入文件内容，本地内容移入回收站",
+                        description = "用文件覆盖本地记录和密码，本地内容移入回收站",
                         selected = selectedImportMode == AppListViewModel.ImportMode.OVERWRITE,
                         onClick = { selectedImportMode = AppListViewModel.ImportMode.OVERWRITE }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     ImportModeItem(
                         title = "合并",
-                        description = "同名应用下追加账号；没有应用则新建",
+                        description = "同名应用下追加账号并追加记录；没有应用则新建",
                         selected = selectedImportMode == AppListViewModel.ImportMode.MERGE,
                         onClick = { selectedImportMode = AppListViewModel.ImportMode.MERGE }
                     )

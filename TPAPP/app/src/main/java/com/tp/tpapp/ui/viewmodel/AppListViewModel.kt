@@ -175,7 +175,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             try {
                 repository.exportToJson(outputStream)
-                _importExportMessage.value = "导出成功"
+                _importExportMessage.value = "导出成功（含记录和密码）"
             } catch (e: Exception) {
                 _importExportMessage.value = "导出失败: ${e.message}"
             }
@@ -192,9 +192,9 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
             _importExportMessage.value = when (result) {
                 is TPRepository.ImportResult.Success -> when (mode) {
                     ImportMode.OVERWRITE ->
-                        "覆盖导入成功: ${result.appCount} 个应用, ${result.accountCount} 个账号；本地原有内容已移入回收站"
+                        "覆盖导入成功: ${result.appCount} 个应用, ${result.accountCount} 个账号, ${result.recordCount} 条记录；本地原有内容已移入回收站"
                     ImportMode.MERGE ->
-                        "合并导入成功: 新增 ${result.appCount} 个应用, 新增 ${result.accountCount} 个账号"
+                        "合并导入成功: 新增 ${result.appCount} 个应用, 新增 ${result.accountCount} 个账号, 新增 ${result.recordCount} 条记录"
                 }
                 is TPRepository.ImportResult.Error ->
                     "导入失败: ${result.message}"
