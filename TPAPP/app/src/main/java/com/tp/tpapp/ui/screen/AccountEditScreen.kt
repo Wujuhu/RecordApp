@@ -59,6 +59,7 @@ fun AccountEditScreen(
     appId: Long,
     accountId: Long?,
     onNavigateBack: () -> Unit,
+    onSaveSuccess: () -> Unit,
     viewModel: AccountEditViewModel = viewModel()
 ) {
     val username by viewModel.username.collectAsState()
@@ -220,7 +221,7 @@ fun AccountEditScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
-                onClick = { viewModel.saveAccount { onNavigateBack() } },
+                onClick = { viewModel.saveAccount { onSaveSuccess() } },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = username.isNotBlank() && password.isNotBlank()
             ) {

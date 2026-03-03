@@ -196,7 +196,18 @@ fun TPNavigation(startDestination: String = Routes.RECORD_LIST) {
                 AccountEditScreen(
                     appId = appId,
                     accountId = accountId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onSaveSuccess = {
+                        val previousRoute = navController.previousBackStackEntry?.destination?.route
+                        if (previousRoute == Routes.APP_DETAIL) {
+                            navController.popBackStack()
+                        } else {
+                            navController.popBackStack()
+                            navController.navigate(Routes.appDetail(appId)) {
+                                launchSingleTop = true
+                            }
+                        }
+                    }
                 )
             }
         }

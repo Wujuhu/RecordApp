@@ -122,6 +122,7 @@ When changing any Room entity field, always update all of:
 
 - App delete is soft delete to password recycle bin.
 - Account delete is hard delete (no account recycle bin currently).
+- After creating a new app and then adding its first account, save should land on that app's account list page (app detail), not back on app list.
 - App supports persistent pin and reorder operations:
   - move up, move down, move to top, move to bottom, pin to top
 - Account password is encrypted at rest (Room `accounts.password` is no longer stored as plaintext).
@@ -487,6 +488,24 @@ Rule:
   - `cd TPAPP && ./gradlew :app:compileDebugKotlin` passed
 - Notes/Risks:
   - Existing users who previously saved `password_default_visible=false` will keep that explicit setting; this change affects default/fallback behavior.
+
+### 2026-03-03 (Post-save navigation for first account after new app creation)
+
+- Request:
+  - Change flow so that after adding a new app and saving the first account/password, user lands on that app's account list page, not the app list.
+- Implementation:
+  - Added `onSaveSuccess` callback to `AccountEditScreen` to separate "back button" behavior from "save completion" behavior.
+  - Updated `Navigation.kt` account-edit route handling:
+    - If previous destination is app detail, save pops back normally.
+    - Otherwise (e.g. came from app list right after adding app), save pops account edit and then navigates to `app_detail/{appId}`.
+- Key files:
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/screen/AccountEditScreen.kt`
+  - `TPAPP/app/src/main/java/com/tp/tpapp/ui/navigation/Navigation.kt`
+  - `PROJECT_PLAYBOOK.md`
+- Verification:
+  - `cd TPAPP && ./gradlew :app:compileDebugKotlin`
+- Notes/Risks:
+  - Save flow now has context-aware destination logic; back button behavior remains unchanged (`popBackStack`).
 
 ---
 
